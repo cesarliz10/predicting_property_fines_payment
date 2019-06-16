@@ -1,28 +1,27 @@
 # coding: utf-8
 
-import numpy
+import numpy as np
 import pandas as pd
 import seaborn as sns
 import time
-import graphviz
-
 import matplotlib.pyplot as plt
-import matplotlib.cm as cm
-from matplotlib.colors import ListedColormap, BoundaryNorm
-import matplotlib.patches as mpatches
 
-
-from sklearn import neighbors
-from sklearn.tree import export_graphviz
-from sklearn.preprocessing import RobustScaler
 import category_encoders as ce
+from sklearn.preprocessing import RobustScaler
 from sklearn.metrics import roc_auc_score
-from sklearn.svm import SVC
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import GridSearchCV
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import confusion_matrix
+
+
+import graphviz
+import matplotlib.cm as cm
+from matplotlib.colors import ListedColormap, BoundaryNorm
+import matplotlib.patches as mpatches
+from sklearn import neighbors
+from sklearn.tree import export_graphviz
 
 
 def df_geog_info( verbose=False ):
@@ -173,3 +172,32 @@ def confusion_mat(y_true,y_pred):
     cm.set_index(pd.Index(['True 0','True 1']),inplace=True)
     cm.columns=(['Predicted 0','Predicted 1'])
     return cm
+
+def get_feature_importance(grid_clf,X_train,threshold=1e-2,saveplot=""):
+    '''
+    estimates a feature importance as the normalized coefficient in the model. 0<=feature importance<=1 
+    (0: the feature is not relevant for the model, 1: a single feature predicts the target e.g. sth is fishy there...)
+    threshold discriminates feature importances whose absolute magnitud are smaller. 
+    '''
+    try:
+        # coefficients random forrest ensemble
+        coefficients =  grid_clf.best_estimator_.feature_importances_
+    except AttributeError:
+        #coefficient logit
+        coefficients = grid_clf.best_estimator_.coef_[0]
+    
+    sorted_coef_index = coefficients.argsort()
+    feature_names = X_train.columns.to_numpy()
+    feature_names = feature_names[ sorted_coef_index ][:]#.astype('str')
+    normed_coefficients = coefficients[sorted_coef_index][:] /  sum(abs(coefficients))
+    mask = np.where( abs(normed_coefficients)>threshold)
+
+    n = len(mask)
+    plt.figure(figsize=(8.5,0.38*n))
+    ax = sns.barplot(y=feature_names[mask],x=normed_coefficients[mask],orient='h',color='Blue')
+    ax.axes.set_title("Features with importance > {}".format(threshold))
+    ax.tick_params(labelsize=9,which='major',pad=-2)
+    plt.tight_layout()
+    if saveplot!="":
+        plt.savefig("./report/{}.png".format(saveplot),format='png')
+    return normed_coefficients,feature_names
